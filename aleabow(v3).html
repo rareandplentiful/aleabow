@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALEABOW</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #070d0a;
+    --ui-text: #8c4a7f;
+    --ui-bright: #7fffd4;
+    --ui-dim: #152b1f;
+    --ui-panel: rgba(7,13,10,0.96);
+  }
+  body {
+    background: var(--bg); color: var(--ui-text);
+    font-family: 'Space Mono', monospace;
+    height: 100vh; display: flex; flex-direction: column;
+    overflow: hidden; user-select: none;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px; border-bottom: 1px solid var(--ui-dim);
+    flex-shrink: 0; background: var(--ui-panel); z-index: 10;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .logo { font-size: 12px; font-weight: 700; letter-spacing: 0.35em; color: var(--ui-bright); text-transform: uppercase; white-space: nowrap; }
+  .logo span { color: var(--ui-text); font-weight: 400; }
+  .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
+  .ctrl-group { display: flex; align-items: center; gap: 6px; }
+  .ctrl-label { font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ui-text); opacity: 0.65; white-space: nowrap; }
+  input[type=range] { -webkit-appearance: none; width: 64px; height: 2px; background: var(--ui-dim); outline: none; border-radius: 1px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--ui-bright); cursor: pointer; box-shadow: 0 0 6px rgba(127,255,212,0.4); }
+  select { background: var(--ui-dim); border: 1px solid #1e3d2e; color: var(--ui-bright); font-family: 'Space Mono', monospace; font-size: 8px; padding: 3px 5px; outline: none; cursor: pointer; letter-spacing: 0.08em; }
+  .btn { background: none; border: 1px solid var(--ui-dim); color: var(--ui-text); font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase; padding: 4px 9px; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+  .btn:hover { border-color: var(--ui-bright); color: var(--ui-bright); box-shadow: 0 0 8px rgba(127,255,212,0.2); }
+  .btn.active { background: var(--ui-bright); color: var(--bg); border-color: var(--ui-bright); }
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+  #canvas-wrap canvas { display: block; }
+  footer { display: flex; align-items: center; justify-content: space-between; padding: 7px 20px; border-top: 1px solid var(--ui-dim); flex-shrink: 0; font-size: 8px; letter-spacing: 0.13em; background: var(--ui-panel); gap: 12px; }
+  #midi-status { display: flex; align-items: center; gap: 6px; }
+  #midi-dot { width: 6px; height: 6px; border-radius: 50%; background: #222; transition: all 0.2s; flex-shrink: 0; }
+  #midi-dot.connected { background: var(--ui-bright); box-shadow: 0 0 6px var(--ui-bright); }
+  #midi-dot.active { background: #fff; box-shadow: 0 0 12px #fff; }
+  #note-log { opacity: 0.45; font-style: italic; min-width: 140px; }
+  .hint { opacity: 0.28; text-align: right; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Alea<span>BOW</span> <span style="font-size:9px;opacity:0.4">beta</span></div>
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Rate</span>
+      <input type="range" id="fire-rate" min="10" max="120" value="70">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Speed</span>
+      <input type="range" id="fish-speed" min="2" max="14" value="6">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Scale</span>
+      <select id="scale-select">
+        <option value="pentatonic">Pentatonic</option>
+        <option value="chromatic">Chromatic</option>
+        <option value="blues">Blues</option>
+        <option value="whole">Whole Tone</option>
+        <option value="japanese">Japanese</option>
+        <option value="lydian">Lydian</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Root</span>
+      <select id="root-select">
+        <option value="48">C3</option><option value="50">D3</option>
+        <option value="52">E3</option><option value="55">G3</option>
+        <option value="57">A3</option><option value="60" selected>C4</option>
+        <option value="62">D4</option><option value="64">E4</option>
+        <option value="67">G4</option><option value="69">A4</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">MIDI Out</span>
+      <select id="midi-select"><option value="">— no MIDI —</option></select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Ch</span>
+      <select id="midi-channel">
+        <option value="0">1</option><option value="1">2</option>
+        <option value="2">3</option><option value="3">4</option>
+        <option value="4">5</option><option value="5">6</option>
+        <option value="6">7</option><option value="7">8</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <button class="btn" id="btn-randomize">Randomize</button>
+      <button class="btn" id="btn-reset">Reset</button>
+      <button class="btn active" id="btn-run">Running</button>
+    </div>
+  </div>
+</header>
+
+<div id="canvas-wrap"></div>
+
+<footer>
+  <div id="midi-status">
+    <div id="midi-dot"></div>
+    <span id="midi-label">MIDI: not connected</span>
+  </div>
+  <div id="note-log">—</div>
+  <div class="hint">pipe base = slide · pipe tip = aim · walls = drag · leaves = angle</div>
+</footer>
+
+<script>
+const SCALES = {
+  pentatonic: [0,2,4,7,9,12,14,16,19,21,24],
+  chromatic:  [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+  blues:      [0,3,5,6,7,10,12,15,17,18,19],
+  whole:      [0,2,4,6,8,10,12,14,16,18,20],
+  japanese:   [0,1,5,7,8,12,13,17,19,20,24,25,29,31,32],
+  lydian:     [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26, 28, 30, 31, 33, 35],
+};
+
+// ── MIDI ──────────────────────────────────────────────────────────────────────
+let midiOut = null, midiAccess = null;
+const midiSelectEl  = document.getElementById('midi-select');
+const midiChannelEl = document.getElementById('midi-channel');
+const midiDotEl     = document.getElementById('midi-dot');
+const midiLabelEl   = document.getElementById('midi-label');
+const noteLogEl     = document.getElementById('note-log');
+const NOTE_NAMES    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteName(m) { return NOTE_NAMES[m%12] + (Math.floor(m/12)-1); }
+let dotTimer = null;
+function flashDot() {
+  midiDotEl.classList.add('active');
+  clearTimeout(dotTimer);
+  dotTimer = setTimeout(()=>midiDotEl.classList.remove('active'), 80);
+}
+function sendNote(midi, vel) {
+  midi = Math.max(21, Math.min(108, midi));
+  let ch = parseInt(midiChannelEl.value);
+  if (midiOut) {
+    midiOut.send([0x90|ch, midi, vel]);
+    setTimeout(()=>midiOut.send([0x80|ch, midi, 0]), 200);
+    flashDot();
+  }
+  noteLogEl.textContent = '▸ '+noteName(midi)+'  vel '+vel+'  ch'+(ch+1);
+  clearTimeout(noteLogEl._t);
+  noteLogEl._t = setTimeout(()=>{ noteLogEl.textContent='—'; }, 700);
+}
+function populateMidi() {
+  if (!midiAccess) return;
+  const prev = midiSelectEl.value;
+  midiSelectEl.innerHTML = '<option value="">— no MIDI —</option>';
+  for (let o of midiAccess.outputs.values()) {
+    const opt = document.createElement('option');
+    opt.value=o.id; opt.textContent=o.name;
+    if (o.id===prev) opt.selected=true;
+    midiSelectEl.appendChild(opt);
+  }
+}
+midiSelectEl.addEventListener('change', ()=>{
+  if (!midiAccess||!midiSelectEl.value) {
+    midiOut=null; midiDotEl.className=''; midiLabelEl.textContent='MIDI: not connected'; return;
+  }
+  midiOut=midiAccess.outputs.get(midiSelectEl.value);
+  midiDotEl.className='connected';
+  midiLabelEl.textContent='MIDI: '+midiOut.name;
+});
+if (navigator.requestMIDIAccess) {
+  navigator.requestMIDIAccess().then(a=>{
+    midiAccess=a; populateMidi(); a.onstatechange=populateMidi;
+  }).catch(()=>{ midiLabelEl.textContent='MIDI: permission denied'; });
+} else {
+  midiLabelEl.textContent='MIDI: not supported — use Chrome';
+}
+
+// ── P5 SKETCH ─────────────────────────────────────────────────────────────────
+const sketch = (p) => {
+  let W, H;
+  let leaves=[], fish=[], ripples=[], sparks=[];
+  let running=true, fireTimer=0;
+
+  // ── Pipe ──────────────────────────────────────────────────────────────────
+  const pipe = {
+    nx:0.18, ny:0.62, angle:-30,
+    get x(){ return this.nx*W; },
+    get y(){ return this.ny*H; },
+    mouthPos(){ let r=p.radians(this.angle); return {x:this.x+Math.cos(r)*44, y:this.y+Math.sin(r)*44}; }
+  };
+
+  // ── Shared wall geometry helpers ──────────────────────────────────────────
+  function wEndpoints(w) {
+    let r=p.radians(w.angle), cx=Math.cos(r), cy=Math.sin(r), hl=w.halfLen*H;
+    return {x1:w.x-cx*hl, y1:w.y-cy*hl, x2:w.x+cx*hl, y2:w.y+cy*hl};
+  }
+  function wNormal(w) { let r=p.radians(w.angle); return {x:-Math.sin(r), y:Math.cos(r)}; }
+  function wCrossed(w,ax,ay,bx,by) {
+    let {x1,y1,x2,y2}=wEndpoints(w);
+    let d=(ax-bx)*(y1-y2)-(ay-by)*(x1-x2);
+    if (Math.abs(d)<0.001) return false;
+    let t=((ax-x1)*(y1-y2)-(ay-y1)*(x1-x2))/d;
+    let u=-((ax-bx)*(ay-y1)-(ay-by)*(ax-x1))/d;
+    return t>=0&&t<=1&&u>=0&&u<=1;
+  }
+  function wNear(w,mx,my) {
+    let {x1,y1,x2,y2}=wEndpoints(w);
+    let dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy);
+    if (len===0) return false;
+    let t=Math.max(0,Math.min(1,((mx-x1)*dx+(my-y1)*dy)/(len*len)));
+    return p.dist(mx,my,x1+t*dx,y1+t*dy)<18;
+  }
+
+  // ── Wall 1 — purple, lives on right half ──────────────────────────────────
+  const wall = {
+    nx:0.88, ny:0.35, halfLen:0.12, angle:90, glow:0,
+    get x(){ return this.nx*W; },
+    get y(){ return this.ny*H; },
+    draw() {
+      let {x1,y1,x2,y2}=wEndpoints(this);
+      if (this.glow>0.01) { p.stroke(180,120,255,this.glow*120); p.strokeWeight(10); p.line(x1,y1,x2,y2); this.glow*=0.80; }
+      p.stroke(120,80,180,200); p.strokeWeight(4); p.strokeCap(p.ROUND); p.line(x1,y1,x2,y2);
+      p.noStroke(); p.fill(140,90,200,180); p.circle(x1,y1,7); p.circle(x2,y2,7);
+      p.fill(80,50,130,200); p.stroke(140,90,200,120); p.strokeWeight(1); p.circle(this.x,this.y,11);
+      p.noStroke(); p.fill(180,140,255,40); p.textSize(7); p.textAlign(p.CENTER,p.CENTER);
+      p.text('WALL', this.x, this.y-14);
+    }
+  };
+
+  // ── Wall 2 — pink, lives on left half ─────────────────────────────────────
+  const wall2 = {
+    nx:0.12, ny:0.35, halfLen:0.12, angle:90, glow:0,
+    get x(){ return this.nx*W; },
+    get y(){ return this.ny*H; },
+    draw() {
+      let {x1,y1,x2,y2}=wEndpoints(this);
+      if (this.glow>0.01) { p.stroke(255,100,180,this.glow*120); p.strokeWeight(10); p.line(x1,y1,x2,y2); this.glow*=0.80; }
+      p.stroke(220,80,150,200); p.strokeWeight(4); p.strokeCap(p.ROUND); p.line(x1,y1,x2,y2);
+      p.noStroke(); p.fill(255,100,180,180); p.circle(x1,y1,7); p.circle(x2,y2,7);
+      p.fill(180,50,110,200); p.stroke(255,100,180,120); p.strokeWeight(1); p.circle(this.x,this.y,11);
+      p.noStroke(); p.fill(255,160,210,40); p.textSize(7); p.textAlign(p.CENTER,p.CENTER);
+      p.text('WALL', this.x, this.y-14);
+    }
+  };
+
+  // ── Leaves ────────────────────────────────────────────────────────────────
+  const LEAF_DEFS = [
+    {nx:0.62,ny:0.11,angle:-5},{nx:0.50,ny:0.19,angle:-38},
+    {nx:0.43,ny:0.31,angle:-52},{nx:0.48,ny:0.44,angle:-30},
+    {nx:0.73,ny:0.17,angle:42},{nx:0.77,ny:0.30,angle:56},
+    {nx:0.71,ny:0.43,angle:36},{nx:0.60,ny:0.27,angle:12},
+    {nx:0.55,ny:0.40,angle:-8},{nx:0.64,ny:0.53,angle:22},
+  ];
+
+  class Leaf {
+    constructor(nx,ny,angle,idx) {
+      this.nx=nx; this.ny=ny; this.angle=angle;
+      this.noteIdx=idx; this.scalePos=idx; this.hits=0; this.glow=0;
+    }
+    get x(){ return this.nx*W; }
+    get y(){ return this.ny*H; }
+    get len(){ return W*0.082; }
+    get col() {
+      let t=p.constrain(this.hits/6,0,1);
+      if (t<0.5) { let s=t*2; return p.color(p.lerp(26,195,s),p.lerp(108,160,s),p.lerp(42,38,s)); }
+      let s=(t-0.5)*2; return p.color(p.lerp(195,218,s),p.lerp(160,68,s),p.lerp(38,28,s));
+    }
+    endpoints() {
+      let r=p.radians(this.angle),cx=Math.cos(r),cy=Math.sin(r);
+      return {x1:this.x-cx*this.len/2,y1:this.y-cy*this.len/2,x2:this.x+cx*this.len/2,y2:this.y+cy*this.len/2};
+    }
+    normalVec(){ let r=p.radians(this.angle); return {x:-Math.sin(r),y:Math.cos(r)}; }
+    crossed(ax,ay,bx,by) {
+      let {x1,y1,x2,y2}=this.endpoints();
+      let d=(ax-bx)*(y1-y2)-(ay-by)*(x1-x2);
+      if (Math.abs(d)<0.001) return false;
+      let t=((ax-x1)*(y1-y2)-(ay-y1)*(x1-x2))/d;
+      let u=-((ax-bx)*(ay-y1)-(ay-by)*(ax-x1))/d;
+      return t>=0&&t<=1&&u>=0&&u<=1;
+    }
+    near(mx,my){ return p.dist(mx,my,this.x,this.y)<W*0.055; }
+    startDrag(my){ this._da=this.angle; this._dm=my; }
+    drag(my){ this.angle=p.constrain(this._da+(my-this._dm)*0.5,-80,80); }
+    fire(speed) {
+      this.hits++; this.glow=1;
+      let root=parseInt(document.getElementById('root-select').value);
+      let scale=SCALES[document.getElementById('scale-select').value];
+      let midi=root+scale[Math.floor(Math.random()*scale.length)];
+      let vel=Math.floor(p.map(speed,1,14,42,115));
+      sendNote(midi,vel);
+      for (let i=0;i<7;i++) sparks.push(new Spark(this.x,this.y));
+    }
+    draw() {
+      let {x1,y1,x2,y2}=this.endpoints();
+      if (this.glow>0.01){ p.stroke(255,240,150,this.glow*110); p.strokeWeight(8); p.line(x1,y1,x2,y2); this.glow*=0.80; }
+      p.stroke(this.col); p.strokeWeight(3.5); p.line(x1,y1,x2,y2);
+      p.noStroke(); p.fill(this.col); p.circle(x1,y1,5.5); p.circle(x2,y2,5.5);
+      p.stroke(this.col); p.strokeWeight(1); p.fill(15,40,22); p.circle(this.x,this.y,9);
+      p.noStroke(); p.fill(127,255,212,30); p.textSize(7); p.textAlign(p.CENTER,p.CENTER);
+      p.text(this.noteIdx+1,this.x,this.y-13);
+    }
+  }
+
+  // ── Fish ──────────────────────────────────────────────────────────────────
+  class Fish {
+    constructor(x,y,vx,vy){ this.x=x;this.y=y;this.px=x;this.py=y;this.vx=vx;this.vy=vy;this.trail=[];this.alive=true; }
+    spd(){ return Math.sqrt(this.vx*this.vx+this.vy*this.vy); }
+    step(){
+      this.px=this.x; this.py=this.y;
+      this.vy+=0.02;
+      this.x+=this.vx; this.y+=this.vy;
+      if (this.x<6)    { this.x=6;   this.vx=Math.abs(this.vx); }
+      if (this.x>W-6)  { this.x=W-6; this.vx=-Math.abs(this.vx); }
+      if (this.y<5)    { this.y=5;   this.vy=Math.abs(this.vy); }
+      if (this.y>H*0.74){ addRipple(this.x,H*0.74); this.alive=false; }
+    }
+    bounceWall(w, sparksCount) {
+      let n=wNormal(w), dot=this.vx*n.x+this.vy*n.y;
+      if (dot>0){ n.x=-n.x; n.y=-n.y; dot=-dot; }
+      this.vx-=2*dot*n.x; this.vy-=2*dot*n.y;
+      this.x=this.px+n.x*5; this.y=this.py+n.y*5;
+      w.glow=1;
+      for (let i=0;i<sparksCount;i++) sparks.push(new Spark(this.x,this.y));
+    }
+    checkLeaves(){
+      for (let leaf of leaves){
+        if (leaf.crossed(this.px,this.py,this.x,this.y)){
+          let n=leaf.normalVec(), dot=this.vx*n.x+this.vy*n.y;
+          if (dot>0){ n.x=-n.x; n.y=-n.y; dot=-dot; }
+          this.vx-=2*dot*n.x; this.vy-=2*dot*n.y;
+          this.x=this.px+n.x*5; this.y=this.py+n.y*5;
+          leaf.fire(this.spd()); return;
+        }
+      }
+      if (wCrossed(wall,  this.px,this.py,this.x,this.y)){ this.bounceWall(wall,  4); return; }
+      if (wCrossed(wall2, this.px,this.py,this.x,this.y)){ this.bounceWall(wall2, 4); return; }
+    }
+    update(){
+      this.trail.push({x:this.x,y:this.y});
+      if (this.trail.length>24) this.trail.shift();
+      const S=3; this.vx/=S; this.vy/=S;
+      for (let i=0;i<S;i++){ this.step(); this.checkLeaves(); if(!this.alive)break; }
+      this.vx*=S; this.vy*=S;
+    }
+    draw(){
+      for (let i=0;i<this.trail.length;i++){
+        p.noStroke(); p.fill(127,255,212,(i/this.trail.length)*65);
+        p.circle(this.trail[i].x,this.trail[i].y,p.map(i,0,this.trail.length,1.2,3.5));
+      }
+      let r=p.map(this.spd(),0,14,4,7);
+      p.noStroke(); p.fill(127,255,212,215); p.circle(this.x,this.y,r*2);
+      p.fill(127,255,212,25); p.circle(this.x,this.y,r*5.5);
+      let ang=Math.atan2(this.vy,this.vx);
+      p.fill(8,18,12,190); p.circle(this.x+Math.cos(ang)*r*0.55,this.y+Math.sin(ang)*r*0.55,2.5);
+    }
+  }
+
+  class Spark {
+    constructor(x,y){ this.x=x;this.y=y; let a=p.random(p.TWO_PI),s=p.random(1.5,4.5); this.vx=Math.cos(a)*s;this.vy=Math.sin(a)*s;this.life=1; }
+    update(){ this.x+=this.vx;this.y+=this.vy;this.vx*=0.87;this.vy*=0.87;this.life-=0.065; }
+    draw(){ p.noStroke();p.fill(255,235,130,this.life*190);p.circle(this.x,this.y,this.life*3.5); }
+    dead(){ return this.life<=0; }
+  }
+  class Ripple {
+    constructor(x,y){ this.x=x;this.y=y;this.r=4;this.a=155; }
+    update(){ this.r+=1.9;this.a-=9; }
+    draw(){ p.noFill();p.stroke(127,255,212,this.a);p.strokeWeight(1);p.ellipse(this.x,this.y,this.r*2,this.r*0.42); }
+    dead(){ return this.a<=0; }
+  }
+  function addRipple(x,y){ ripples.push(new Ripple(x,y)); }
+
+  function drawPipe(){
+    let r=p.radians(pipe.angle),len=40;
+    let tx=pipe.x+Math.cos(r)*len, ty=pipe.y+Math.sin(r)*len;
+    p.strokeCap(p.SQUARE); p.stroke(45,100,65); p.strokeWeight(11); p.line(pipe.x,pipe.y,tx,ty);
+    p.stroke(65,145,90,80); p.strokeWeight(4);
+    p.line(pipe.x-Math.sin(r)*2,pipe.y+Math.cos(r)*2,tx-Math.sin(r)*2,ty+Math.cos(r)*2);
+    p.strokeCap(p.ROUND); p.stroke(90,185,115); p.strokeWeight(14);
+    p.line(tx-Math.cos(r)*5,ty-Math.sin(r)*5,tx,ty);
+    p.stroke(8,18,12); p.strokeWeight(6);
+    p.line(tx-Math.cos(r)*4,ty-Math.sin(r)*4,tx+Math.cos(r),ty+Math.sin(r));
+    p.noStroke(); p.fill(25,60,38); p.circle(pipe.x,pipe.y,22);
+    p.fill(45,105,68); p.circle(pipe.x,pipe.y,14);
+    p.fill(65,145,90); p.circle(pipe.x,pipe.y,7);
+    p.stroke(127,255,212,8); p.strokeWeight(1); p.strokeCap(p.ROUND);
+    p.line(W*0.04,pipe.y,W*0.50,pipe.y);
+    p.noFill(); p.stroke(127,255,212,15); p.strokeWeight(1);
+    p.arc(pipe.x,pipe.y,58,58,p.radians(-88),p.radians(-8));
+    p.noStroke();
+    let spd=parseFloat(document.getElementById('fish-speed').value);
+    let px2=tx,py2=ty,pvx=Math.cos(r)*spd,pvy=Math.sin(r)*spd;
+    for (let i=0;i<14;i++){
+      px2+=pvx; py2+=pvy;
+      if (px2<0||px2>W||py2>H*0.74) break;
+      p.fill(127,255,212,p.map(i,0,14,55,0)); p.circle(px2,py2,p.map(i,0,14,3,1));
+    }
+  }
+
+  function drawTree(){
+    let wy=H*0.74,tx=W*0.62;
+    p.strokeCap(p.ROUND); p.stroke(22,50,32,100); p.strokeWeight(6); p.line(tx,wy,tx,H*0.07);
+    [[tx,H*.14,W*.50,H*.21],[tx,H*.14,W*.73,H*.19],[tx,H*.21,W*.44,H*.33],[tx,H*.21,W*.76,H*.31],
+     [tx,H*.29,W*.47,H*.46],[tx,H*.29,W*.71,H*.45],[tx,H*.37,W*.56,H*.42],[tx,H*.37,W*.64,H*.55]]
+    .forEach(b=>{ p.stroke(22,50,32,55); p.strokeWeight(2.5); p.line(b[0],b[1],b[2],b[3]); });
+  }
+
+  // ── Drag state ────────────────────────────────────────────────────────────
+  let draggingLeaf=null, draggingPipe=false, draggingPipeBase=false;
+  let draggingWall=false, draggingWall2=false;
+  let wallDragOffX=0, wallDragOffY=0;
+
+  function initLeaves(){ leaves=LEAF_DEFS.map((d,i)=>new Leaf(d.nx,d.ny,d.angle,i)); }
+  function randomize(){ for (let l of leaves){ l.angle=p.random(-70,70); l.hits=0; } }
+  function resetAll(){ fish=[];ripples=[];sparks=[];fireTimer=0;initLeaves(); }
+  function launch(){
+    let spd=parseFloat(document.getElementById('fish-speed').value);
+    let r=p.radians(pipe.angle), spread=p.random(-0.07,0.07);
+    let {x,y}=pipe.mouthPos();
+    fish.push(new Fish(x,y,Math.cos(r+spread)*spd,Math.sin(r+spread)*spd));
+  }
+
+  p.setup=()=>{
+    let wrap=document.getElementById('canvas-wrap');
+    W=wrap.offsetWidth; H=wrap.offsetHeight;
+    p.createCanvas(W,H).parent('canvas-wrap'); p.textFont('monospace'); initLeaves();
+  };
+  p.windowResized=()=>{
+    let wrap=document.getElementById('canvas-wrap');
+    W=wrap.offsetWidth; H=wrap.offsetHeight; p.resizeCanvas(W,H);
+  };
+
+  p.draw=()=>{
+    p.background(7,13,10);
+    p.noStroke();
+    for (let i=0;i<5;i++){ p.fill(20,60,38,8); p.ellipse(p.noise(i*1.3,p.frameCount*0.001)*W, p.noise(i*1.3+50,p.frameCount*0.001)*H*0.70,120,80); }
+    let waterY=H*0.74;
+    drawTree();
+    p.noStroke(); p.fill(9,20,14,180); p.rect(0,waterY,W,H-waterY);
+    for (let i=0;i<4;i++){ p.fill(127,255,212,4); p.ellipse(((p.frameCount*0.22+i*W/4)%W),waterY+5,110,7); }
+    p.stroke(127,255,212,16); p.strokeWeight(1); p.line(0,waterY,W,waterY);
+    drawPipe();
+    wall.draw(); wall2.draw();
+    if (running){ let rate=130-parseInt(document.getElementById('fire-rate').value); if(++fireTimer>=rate){ launch(); fireTimer=0; } }
+    for (let f of fish){ f.update(); f.draw(); }
+    fish=fish.filter(f=>f.alive);
+    for (let l of leaves) l.draw();
+    for (let s of sparks){ s.update(); s.draw(); } sparks=sparks.filter(s=>!s.dead());
+    for (let r of ripples){ r.update(); r.draw(); } ripples=ripples.filter(r=>!r.dead());
+    let vg=p.drawingContext.createRadialGradient(W/2,H/2,H*.12,W/2,H/2,H*.88);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.58)');
+    p.drawingContext.fillStyle=vg; p.drawingContext.fillRect(0,0,W,H);
+  };
+
+  p.mousePressed=()=>{
+    // Wall 2 — pink, left
+    if (wNear(wall2,p.mouseX,p.mouseY)){ draggingWall2=true; wallDragOffX=p.mouseX-wall2.x; wallDragOffY=p.mouseY-wall2.y; return; }
+    // Wall 1 — purple, right
+    if (wNear(wall,p.mouseX,p.mouseY)){ draggingWall=true; wallDragOffX=p.mouseX-wall.x; wallDragOffY=p.mouseY-wall.y; return; }
+    // Pipe base
+    if (p.dist(p.mouseX,p.mouseY,pipe.x,pipe.y)<26){ draggingPipeBase=true; return; }
+    // Pipe aim
+    let mx=pipe.mouthPos();
+    if (p.dist(p.mouseX,p.mouseY,mx.x,mx.y)<30){ draggingPipe=true; return; }
+    // Leaf
+    for (let l of leaves){ if (l.near(p.mouseX,p.mouseY)){ draggingLeaf=l; l.startDrag(p.mouseY); return; } }
+    // Manual fire
+    if (p.dist(p.mouseX,p.mouseY,mx.x,mx.y)<50) launch();
+  };
+
+  p.mouseDragged=()=>{
+    if (draggingWall2){ wall2.nx=p.constrain((p.mouseX-wallDragOffX)/W,0.02,0.50); wall2.ny=p.constrain((p.mouseY-wallDragOffY)/H,0.05,0.70); }
+    if (draggingWall) { wall.nx=p.constrain((p.mouseX-wallDragOffX)/W,0.50,0.97); wall.ny=p.constrain((p.mouseY-wallDragOffY)/H,0.05,0.70); }
+    if (draggingPipeBase) pipe.nx=p.constrain(p.mouseX/W,0.04,0.50);
+    if (draggingPipe){ let dx=p.mouseX-pipe.x,dy=p.mouseY-pipe.y; pipe.angle=p.constrain(p.degrees(Math.atan2(dy,dx)),-88,-8); }
+    if (draggingLeaf) draggingLeaf.drag(p.mouseY);
+  };
+
+  p.mouseReleased=()=>{ draggingWall=false; draggingWall2=false; draggingPipe=false; draggingPipeBase=false; draggingLeaf=null; };
+
+  window._sketch={ randomize, resetAll, setRunning:v=>{ running=v; if(v) fireTimer=0; } };
+};
+
+new p5(sketch);
+document.getElementById('btn-randomize').addEventListener('click',()=>window._sketch?.randomize());
+document.getElementById('btn-reset').addEventListener('click',()=>window._sketch?.resetAll());
+const btnRun=document.getElementById('btn-run');
+let isRunning=true;
+btnRun.addEventListener('click',()=>{
+  isRunning=!isRunning; window._sketch?.setRunning(isRunning);
+  btnRun.textContent=isRunning?'Running':'Paused';
+  btnRun.classList.toggle('active',isRunning);
+});
+</script>
+</body>
+</html>
